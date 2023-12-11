@@ -1,0 +1,256 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+
+        "vmSize": {
+            "type": "string",
+            "defaultValue": "Standard_D4s_v5",
+            "metadata": {
+                "description": "Size of the virtual machine"
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Admin username for the virtual machine"
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Admin password for the virtual machine"
+            }
+        },
+        "sshKey": {
+            "type": "string",
+            "metadata": {
+                "description": "Admin password for the virtual machine"
+            }
+        },
+        "vnetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the virtual network"
+            }
+        },
+        "subnetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the subnet"
+            }
+        }
+    },
+    "variables": {
+        "location": "[resourceGroup().location]",
+        "vnetAddressPrefixv4": "10.0.0.0/16",
+        "subnetAddressPrefixv4": "10.0.0.0/24",
+        "nsgName": "nsg",
+        "vmNicNameClient": "client-nic",
+        "vmNameClient": "client",
+        "vmNicNameServer": "server-nic",
+        "vmNameServer": "server",
+        "vmExtNameWindows": "MonitorX64Windows",
+        "vmExtNameLinux": "MonitorX64Linux"
+
+    },
+    "resources": [
+        {
+            "name": "[variables('nsgName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2023-04-01",
+            "location": "[variables('location')]",
+            "properties": {
+                "securityRules": [
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "name": "[parameters('vnetName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('vnetAddressPrefixv4')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[parameters('subnetName')]",
+                        "properties": {
+                            "addressPrefixes": [
+                                "[variables('subnetAddressPrefixv4')]"
+                            ],
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('vmNicNameServer')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfigv4",
+                        "properties": {
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '/subnets/', parameters('subnetName'))]"
+                            },
+                            "privateIpAddressVersion": "IPv4"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-03-01",
+            "name": "[variables('vmNameServer')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicNameServer'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2022-datacenter-azure-edition",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage"
+                    }
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmNameServer')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicNameServer'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2023-03-01",
+            "name": "[concat(variables('vmNameServer'), '/', variables('vmExtNameWindows'))]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('vmNameServer'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.AzureCAT.AzureEnhancedMonitoring",
+                "type": "MonitorX64Windows",
+                "typeHandlerVersion": "1.0",
+                "settings": "{'cfg':[]}"
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "name": "[variables('vmNicNameClient')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfigv4",
+                        "properties": {
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '/subnets/', parameters('subnetName'))]"
+                            },
+                            "privateIpAddressVersion": "IPv4"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2023-03-01",
+            "name": "[variables('vmNameClient')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicNameClient'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "0001-com-ubuntu-server-jammy",
+                        "sku": "22_04-lts",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage"
+                    }
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmNameClient')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "keyData": "[parameters('sshKey')]",
+                                    "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]"
+                                }
+                            ]
+                        },
+                        "disablePasswordAuthentication": true
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicNameClient'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2023-03-01",
+            "name": "[concat(variables('vmNameClient'), '/', variables('vmExtNameLinux'))]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', variables('vmNameClient'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.AzureCAT.AzureEnhancedMonitoring",
+                "type": "MonitorX64Linux",
+                "typeHandlerVersion": "1.0",
+                "settings": "{'cfg':[]}"
+            }
+        }
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "aem verify",
+            "type": "python",
+            "request": "launch",
+            "program": "/workspaces/dev_azure-cli-extensions/azure-cli-extensions/scripts/run_az.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "vm",
+                "aem",
+                "verify"
+            ]
+        }
+    ]
+}
